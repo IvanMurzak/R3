@@ -9,6 +9,16 @@
     "license": "MIT",
     "category": "Scripting",
     "dependencies": {
-        "com.unity.modules.imgui": "1.0.0"
-    }
+        "com.unity.modules.imgui": "1.0.0",
+        "org.nuget.r3": "1.2.9"
+    },
+    "scopedRegistries": [
+        {
+            "name": "Unity NuGet",
+            "url": "https://unitynuget-registry.azurewebsites.net",
+            "scopes": [
+                "org.nuget"
+            ]
+        }
+    ]
 }
