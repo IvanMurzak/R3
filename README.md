@@ -1,6 +1,6 @@
 # R3
 
-The new future of [dotnet/reactive](https://github.com/dotnet/reactive/) and [UniRx](https://github.com/neuecc/UniRx), which support many platforms including [Unity](#unity), [Godot](#godot), [Avalonia](#avalonia), [WPF](#wpf), [WinForms](#winforms), [WinUI3](#winui3), [Stride](#stride), [LogicLooper](#logiclooper), [MAUI](#maui), [MonoGame](#monogame), [Blazor](#blazor).
+The new future of [dotnet/reactive](https://github.com/dotnet/reactive/) and [UniRx](https://github.com/neuecc/UniRx), which support many platforms including [Unity](#unity), [Godot](#godot), [Avalonia](#avalonia), [WPF](#wpf), [WinForms](#winforms), [WinUI3](#winui3), [Stride](#stride), [LogicLooper](#logiclooper), [MAUI](#maui), [MonoGame](#monogame), [Blazor](#blazor), [Uno](#uno).
 
 I have over 10 years of experience with Rx, experience in implementing a custom Rx runtime ([UniRx](https://github.com/neuecc/UniRx)) for game engine, and experience in implementing an asynchronous runtime ([UniTask](https://github.com/Cysharp/UniTask/)) for game engine. Based on those experiences, I came to believe that there is a need to implement a new Reactive Extensions for .NET, one that reflects modern C# and returns to the core values of Rx.
 
@@ -34,11 +34,13 @@ For those interested in learning more about the implementation philosophy and co
 
 Core Interface
 ---
-This library is distributed via NuGet, supporting .NET Standard 2.0, .NET Standard 2.1, .NET 6(.NET 7) and .NET 8 or above.
+This library is distributed via [NuGet packages/R3](https://www.nuget.org/packages/R3), supporting .NET Standard 2.0, .NET Standard 2.1, .NET 6(.NET 7) and .NET 8 or above.
 
-> PM> Install-Package [R3](https://www.nuget.org/packages/R3)
+```bash
+dotnet add package R3
+```
 
-Some platforms(WPF, Avalonia, Unity, Godot) requires additional step to install. Please see [Platform Supports](#platform-supports) section in below.
+Some platforms(WPF, Avalonia, Unity, Godot, etc...) requires additional step to install. Please see [Platform Supports](#platform-supports) section in below.
 
 R3 code is mostly the same as standard Rx. Make the Observable via factory methods(Timer, Interval, FromEvent, Subject, etc...) and chain operator via LINQ methods. Therefore, your knowledge about Rx and documentation on Rx can be almost directly applied. If you are new to Rx, the [ReactiveX](https://reactivex.io/intro.html) website and [Introduction to Rx.NET](https://introtorx.com/) would be useful resources for reference.
 
@@ -111,7 +113,7 @@ While TimeProvider is an abstraction for asynchronous operations, excluding the 
 
 In R3, anything that requires synchronous execution (like Range) is treated as Immediate, and everything else is considered asynchronous and handled through TimeProvider.
 
-As for the implementation of TimeProvider, the standard TimeProvider.System using the ThreadPool is the default. For unit testing, FakeTimeProvider (Microsoft.Extensions.TimeProvider.Testing) is available. Additionally, many TimeProvider implementations are provided for different platforms, such as DispatcherTimerProvider for WPF and UpdateTimerProvider for Unity, enhancing ease of use tailored to each platform.
+As for the implementation of TimeProvider, the standard TimeProvider.System using the ThreadPool is the default. For unit testing, FakeTimeProvider (Microsoft.Extensions.TimeProvider.Testing) is available. Additionally, many TimeProvider implementations are provided for different platforms, such as DispatcherTimeProvider for WPF and UpdateTimeProvider for Unity, enhancing ease of use tailored to each platform.
 
 Frame based operations
 ---
@@ -532,7 +534,7 @@ var list = Observable.EveryUpdate(frameProvider, cts.Token)
     .Select(_ => frameProvider.GetFrameCount())
     .ToLiveList();
 
-list.AssertEqual([]); // list.Should().Equal(expected);
+list.AssertEqual([]); // list.ShouldBe(expected);
 
 frameProvider.Advance();
 list.AssertEqual([0]);
@@ -541,7 +543,7 @@ frameProvider.Advance(3);
 list.AssertEqual([0, 1, 2, 3]);
 
 cts.Cancel();
-list.AssertIsCompleted(); // list.IsCompleted.Should().BeTrue();
+list.AssertIsCompleted(); // list.IsCompleted.ShouldBeTrue();
 
 frameProvider.Advance();
 list.AssertEqual([0, 1, 2, 3]);
@@ -553,35 +555,35 @@ list.AssertIsCompleted();
 ```csharp
 public static class LiveListExtensions
 {
-    // Should() is xUnit + FluentAssertions
+    // Shouldbe() is xUnit + Shouldly
     public static void AssertEqual<T>(this LiveList<T> list, params T[] expected)
     {
-        list.Should().Equal(expected);
+        list.ShouldBe(expected);
     }
 
     public static void AssertEqual<T>(this LiveList<T[]> list, params T[][] expected)
     {
-        list.Count.Should().Be(expected.Length);
+        list.Count.ShouldBe(expected.Length);
 
         for (int i = 0; i < expected.Length; i++)
         {
-            list[i].Should().Equal(expected[i]);
+            list[i].ShouldBe(expected[i]);
         }
     }
 
     public static void AssertEmpty<T>(this LiveList<T> list)
     {
-        list.Count.Should().Be(0);
+        list.Count.ShouldBe(0);
     }
 
     public static void AssertIsCompleted<T>(this LiveList<T> list)
     {
-        list.IsCompleted.Should().BeTrue();
+        list.IsCompleted.ShouldBeTrue();
     }
 
     public static void AssertIsNotCompleted<T>(this LiveList<T> list)
     {
-        list.IsCompleted.Should().BeFalse();
+        list.IsCompleted.ShouldBeFalse();
     }
 
     public static void Advance(this FakeTimeProvider timeProvider, int seconds)
@@ -601,6 +603,8 @@ Interoperability with `IObservable<T>`
 Interoperability with `async/await`
 ---
 R3 has special integration with `async/await`. First, all methods that return a single asynchronous operation have now become ***Async methods, returning `Task<T>`.
+
+Methods that convert to such `Task` (for example `FirstAsync`, `LastAsync`) transform OnErrorResume's Exception into a Faulted Task, similar to OnCompleted(Exception). Note that since the Catch operator does not capture OnErrorResume, if you want integrated error handling, please use `OnErrorResumeAsFailure()` to convert `OnErrorResume(Exception)` to `OnCompleted(Exception)`.
 
 Furthermore, you can specify special behaviors when asynchronous methods are provided to Where/Select/Subscribe.
 
@@ -913,6 +917,14 @@ public class ValidationViewModel : IDisposable
 
 ![image](https://github.com/Cysharp/R3/assets/46207/f80149e6-1573-46b5-9a77-b78776dd3527)
 
+Validation using `EnableValidation` does not trigger for initial values by default. This means that even if you don't allow empty strings, the validation error won't appear for an initially empty value. If you want to perform validation on initial values, you can call `ForceValidate()` after `EnableValidation`.
+
+```csharp
+Weight = new BindableReactiveProperty<double>()
+    .EnableValidation(() => Weight)
+    .ForceValidate();
+```
+
 There is also `IReadOnlyBindableReactiveProperty<T>`, which is preferable when ReadOnly is required in binding, can create from `IObservable<T>.ToReadOnlyBindableReactiveProperty<T>`.
 
 ### ReactiveCommand
@@ -998,6 +1010,7 @@ Although standard support is provided for the following platforms, by implementi
 
 * [WPF](#wpf)
 * [Avalonia](#avalonia)
+* [Uno](#uno)
 * [MAUI](#mau)
 * [WinForms](#winforms)
 * [WinUI3](#winui3)
@@ -1014,7 +1027,7 @@ Although standard support is provided for the following platforms, by implementi
 
 R3Extensions.WPF package has two providers.
 
-* WpfDispatcherTimerProvider
+* WpfDispatcherTimeProvider
 * WpfRenderingFrameProvider
 
 Calling `WpfProviderInitializer.SetDefaultObservableSystem()` at startup will replace `ObservableSystem.DefaultTimeProvider` and `ObservableSystem.DefaultFrameProvider` with the aforementioned providers.
@@ -1073,13 +1086,13 @@ ViewModel binding support, see [`BindableReactiveProperty<T>`](#xaml-platformsbi
 
 R3Extensions.Avalonia package has these providers.
 
-* AvaloniaDispatcherTimerProvider
+* AvaloniaDispatcherTimeProvider
 * AvaloniaDispatcherFrameProvider
 * AvaloniaRenderingFrameProvider
 
-Calling `AvaloniaProviderInitializer.SetDefaultObservableSystem()` at startup will replace `ObservableSystem.DefaultTimeProvider` and `ObservableSystem.DefaultFrameProvider` with `AvaloniaDispatcherTimerProvider` and `AvaloniaDispatcherFrameProvider`.
+Calling `AvaloniaProviderInitializer.SetDefaultObservableSystem()` at startup will replace `ObservableSystem.DefaultTimeProvider` and `ObservableSystem.DefaultFrameProvider` with `AvaloniaDispatcherTimeProvider` and `AvaloniaDispatcherFrameProvider`.
 
-Additionally, calling `UseR3()` in `ApplicationBuilder` sets the default providers, making it a recommended approach.
+Additionally, calling `UseR3()` in `AppBuilder` sets the default providers, making it a recommended approach.
 
 ```csharp
 public static AppBuilder BuildAvaloniaApp()
@@ -1137,13 +1150,53 @@ In addition to the above, the following `ObserveOn`/`SubscribeOn` methods have b
 * SubscribeOnDispatcher
 * SubscribeOnUIThreadDispatcher
 
+### Uno
+
+> PM> Install-Package [R3Extensions.Uno](https://www.nuget.org/packages/R3Extensions.Uno)
+
+R3Extensions.Uno package has two providers.
+
+* UnoDispatcherTimeProvider
+* UnoRenderingFrameProvider
+
+Calling `UnoProviderInitializer.SetDefaultObservableSystem()` at startup will replace `ObservableSystem.DefaultTimeProvider` and `ObservableSystem.DefaultFrameProvider` with `UnoDispatcherTimeProvider` and `UnoRenderingFrameProvider`.
+
+Additionally, calling `UseR3()` in `ApplicationBuilder` sets the default providers, making it a recommended approach.
+
+```csharp
+public partial class App : Application
+{
+    protected async override void OnLaunched(LaunchActivatedEventArgs args)
+    {
+        var builder = this.CreateBuilder(args)
+            .UseR3() // add this line
+            ...
+    }
+}
+```
+
+As a result, time based operations are replaced with `DispatcherTimer`, allowing you to reflect time based operations on the UI without having to use `ObserveOn`.
+
+In the case of methods without arguments, integrate the following method into `ObservableSystem.RegisterUnhandledExceptionHandler`. Please customize this as necessary.
+
+```csharp
+ex => builder.Log().LogError("R3 Unhandled Exception {0}", ex));
+```
+
+In addition to the above, the following `ObserveOn`/`SubscribeOn` methods have been added.
+
+* ObserveOnDispatcher
+* ObserveOnCurrentWindowDispatcher
+* SubscribeOnDispatcher
+* SubscribeOnCurrentWindowDispatcher
+
 ### MAUI
 
 > PM> Install-Package [R3Extensions.Maui](https://www.nuget.org/packages/R3Extensions.Maui)
 
 R3Extensions.Maui package has these providers.
 
-* MauiDispatcherTimerProvider
+* MauiDispatcherTimeProvider
 * MauiTickerFrameProvider
 
 And ViewModel binding is supported, see [`BindableReactiveProperty<T>`](#xaml-platformsbindablereactivepropertyt) section.
@@ -1206,9 +1259,9 @@ builder.Services.AddSingleton<IR3MauiExceptionHandler, YourCustomExceptionHandle
 R3Extensions.WinForms package has these providers.
 
 * WinFormsFrameProvider
-* WinFormsTimerProvider
+* WinFormsTimeProvider
 
-Calling `WinFormsProviderInitializer.SetDefaultObservableSystem()` at startup(Program.Main) will replace `ObservableSystem.DefaultTimeProvider` and `ObservableSystem.DefaultFrameProvider` with `WinFormsFrameProvider` and `WinFormsTimerProvider`.
+Calling `WinFormsProviderInitializer.SetDefaultObservableSystem()` at startup(Program.Main) will replace `ObservableSystem.DefaultTimeProvider` and `ObservableSystem.DefaultFrameProvider` with `WinFormsFrameProvider` and `WinFormsTimeProvider`.
 
 
 ```csharp
@@ -1241,7 +1294,7 @@ FrameProvider is executed as one frame using the hook of MessageFilter.
 
 R3Extensions.WinUI3 package has these providers.
 
-* WinUI3DispatcherTimerProvider
+* WinUI3DispatcherTimeProvider
 * WinUI3RenderingFrameProvider
 
 Calling `WinUI3ProviderInitializer.SetDefaultObservableSystem()` at startup will replace `ObservableSystem.DefaultTimeProvider` and `ObservableSystem.DefaultFrameProvider` with the aforementioned providers.
@@ -1540,6 +1593,32 @@ public static Observable<Unit> OnTextChangedAsObservable(this TextEdit textEdit,
 public static Observable<long> OnItemSelectedAsObservable(this OptionButton optionButton, CancellationToken cancellationToken = default)
 ```
 
+Also, there is support for Sigal.
+
+```csharp
+public static CancellationToken CancelOnSignal(this GodotObject obj, StringName signalName, bool oneShot = true)
+public static Observable<Unit> SignalAsObservable(this Node node, StringName signalName)
+public static Observable<T> SignalAsObservable<[MustBeVariant] T>(this Node node, StringName signalName)
+public static Observable<(T0, T1)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1>(this Node node, StringName signalName)
+public static Observable<(T0, T1, T2)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2>(this Node node, StringName signalName)
+public static Observable<(T0, T1, T2, T3)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3>(this Node node, StringName signalName)
+public static Observable<(T0, T1, T2, T3, T4)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4>(this Node node, StringName signalName)
+public static Observable<(T0, T1, T2, T3, T4, T5)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4, [MustBeVariant] T5>(this Node node, StringName signalName)
+public static Observable<(T0, T1, T2, T3, T4, T5, T6)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4, [MustBeVariant] T5, [MustBeVariant] T6>(this Node node, StringName signalName)
+public static Observable<(T0, T1, T2, T3, T4, T5, T6, T7)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4, [MustBeVariant] T5, [MustBeVariant] T6, [MustBeVariant] T7>(this Node node, StringName signalName)
+public static Observable<(T0, T1, T2, T3, T4, T5, T6, T7, T8)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4, [MustBeVariant] T5, [MustBeVariant] T6, [MustBeVariant] T7, [MustBeVariant] T8>(this Node node, StringName signalName)
+public static Observable<Unit> SignalAsObservable(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+public static Observable<T> SignalAsObservable<[MustBeVariant] T>(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+public static Observable<(T0, T1)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1>(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+public static Observable<(T0, T1, T2)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2>(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+public static Observable<(T0, T1, T2, T3)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3>(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+public static Observable<(T0, T1, T2, T3, T4)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4>(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+public static Observable<(T0, T1, T2, T3, T4, T5)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4, [MustBeVariant] T5>(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+public static Observable<(T0, T1, T2, T3, T4, T5, T6)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4, [MustBeVariant] T5, [MustBeVariant] T6>(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+public static Observable<(T0, T1, T2, T3, T4, T5, T6, T7)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4, [MustBeVariant] T5, [MustBeVariant] T6, [MustBeVariant] T7>(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+public static Observable<(T0, T1, T2, T3, T4, T5, T6, T7, T8)> SignalAsObservable<[MustBeVariant] T0, [MustBeVariant] T1, [MustBeVariant] T2, [MustBeVariant] T3, [MustBeVariant] T4, [MustBeVariant] T5, [MustBeVariant] T6, [MustBeVariant] T7, [MustBeVariant] T8>(this GodotObject obj, StringName signalName, CancellationToken cancellationToken = default)
+```
+
 You can watch subscription status in `Debugger -> ObservableTracker` view.
 
 ![image](https://github.com/Cysharp/R3/assets/46207/8b5258a5-8124-4123-a837-79c31427c1d3)
@@ -1648,7 +1727,7 @@ R3 extensions for [LogicLooper](https://github.com/Cysharp/LogicLooper/)
 That supports two special providers.
 
 * LogicLooperFrameProvider
-* LogicLooperTimerProvider
+* LogicLooperTimeProvider
 
 ### Blazor
 
@@ -1758,8 +1837,6 @@ Factory methods are defined as static methods in the static class `Observable`.
 
 | Name(Parameter) | ReturnType | 
 | --- | --- | 
-| **Amb**(params `Observable<T>[]` sources) | `Observable<T>` | 
-| **Amb**(`IEnumerable<Observable<T>>` sources) | `Observable<T>` | 
 | **CombineLatest**(params `Observable<T>[]` sources) | `Observable<T[]>` | 
 | **CombineLatest**(`IEnumerable<Observable<T>>` sources) | `Observable<T[]>` | 
 | **CombineLatest**(this `Observable<T1>` source1, `Observable<T2>` source2, `Func<T1, T2, TResult>` resultSelector) | `Observable<TResult>` | 
@@ -1821,6 +1898,8 @@ Factory methods are defined as static methods in the static class `Observable`.
 | **ObservePropertyChanging**(this `T` value, `Func<T, TProperty>` propertySelector, `Boolean` pushCurrentValueOnSubscribe = true, `CancellationToken` cancellationToken = default, `String` expr = default) | `Observable<TProperty>` | 
 | **ObservePropertyChanging**(this `T` value, `Func<T, TProperty1>` propertySelector1, `Func<TProperty1, TProperty2>` propertySelector2, `Boolean` pushCurrentValueOnSubscribe = true, `CancellationToken` cancellationToken = default, `String` propertySelector1Expr = default, `String` propertySelector2Expr = default) | `Observable<TProperty2>` | 
 | **ObservePropertyChanging**(this `T` value, `Func<T, TProperty1>` propertySelector1, `Func<TProperty1, TProperty2>` propertySelector2, `Func<TProperty2, TProperty3>` propertySelector3, `Boolean` pushCurrentValueOnSubscribe = true, `CancellationToken` cancellationToken = default, `String` propertySelector1Expr = default, `String` propertySelector2Expr = default, `String` propertySelector3Expr = default) | `Observable<TProperty3>` | 
+| **Race**(params `Observable<T>[]` sources) | `Observable<T>` | 
+| **Race**(`IEnumerable<Observable<T>>` sources) | `Observable<T>` | 
 | **Range**(`Int32` start, `Int32` count) | `Observable<Int32>` | 
 | **Range**(`Int32` start, `Int32` count, `CancellationToken` cancellationToken) | `Observable<Int32>` | 
 | **Repeat**(`T` value, `Int32` count) | `Observable<T>` | 
@@ -1937,7 +2016,6 @@ Operator methods are defined as extension methods to `Observable<T>` in the stat
 | **AggregateByAsync**(this `Observable<TSource>` source, `Func<TSource, TKey>` keySelector, `TAccumulate` seed, `Func<TAccumulate, TSource, TAccumulate>` func, `IEqualityComparer<TKey>` keyComparer = default, `CancellationToken` cancellationToken = default) | `Task<IEnumerable<KeyValuePair<TKey, TAccumulate>>>` | 
 | **AggregateByAsync**(this `Observable<TSource>` source, `Func<TSource, TKey>` keySelector, `Func<TKey, TAccumulate>` seedSelector, `Func<TAccumulate, TSource, TAccumulate>` func, `IEqualityComparer<TKey>` keyComparer = default, `CancellationToken` cancellationToken = default) | `Task<IEnumerable<KeyValuePair<TKey, TAccumulate>>>` | 
 | **AllAsync**(this `Observable<T>` source, `Func<T, Boolean>` predicate, `CancellationToken` cancellationToken = default) | `Task<Boolean>` | 
-| **Amb**(this `Observable<T>` source, `Observable<T>` second) | `Observable<T>` | 
 | **AnyAsync**(this `Observable<T>` source, `CancellationToken` cancellationToken = default) | `Task<Boolean>` | 
 | **AnyAsync**(this `Observable<T>` source, `Func<T, Boolean>` predicate, `CancellationToken` cancellationToken = default) | `Task<Boolean>` | 
 | **Append**(this `Observable<T>` source, `T` value) | `Observable<T>` | 
@@ -1975,6 +2053,8 @@ Operator methods are defined as extension methods to `Observable<T>` in the stat
 | **ChunkFrame**(this `Observable<T>` source, `Int32` frameCount, `FrameProvider` frameProvider) | `Observable<T[]>` | 
 | **ChunkFrame**(this `Observable<T>` source, `Int32` frameCount, `Int32` count) | `Observable<T[]>` | 
 | **ChunkFrame**(this `Observable<T>` source, `Int32` frameCount, `Int32` count, `FrameProvider` frameProvider) | `Observable<T[]>` | 
+| **ChunkUntil**(this `Observable<T>` source, `Func<T, Boolean>` predicate) | `Observable<T[]>` | 
+| **ChunkUntil**(this `Observable<T>` source, `Func<T, Int32, Boolean>` predicate) | `Observable<T[]>` | 
 | **Concat**(this `Observable<T>` source, `Observable<T>` second) | `Observable<T>` | 
 | **ContainsAsync**(this `Observable<T>` source, `T` value, `CancellationToken` cancellationToken = default) | `Task<Boolean>` | 
 | **ContainsAsync**(this `Observable<T>` source, `T` value, `IEqualityComparer<T>` equalityComparer, `CancellationToken` cancellationToken = default) | `Task<Boolean>` | 
@@ -2067,6 +2147,7 @@ Operator methods are defined as extension methods to `Observable<T>` in the stat
 | **Prepend**(this `Observable<T>` source, `TState` state, `Func<TState, T>` valueFactory) | `Observable<T>` | 
 | **Publish**(this `Observable<T>` source) | `ConnectableObservable<T>` | 
 | **Publish**(this `Observable<T>` source, `T` initialValue) | `ConnectableObservable<T>` | 
+| **Race**(this `Observable<T>` source, `Observable<T>` second) | `Observable<T>` | 
 | **RefCount**(this `ConnectableObservable<T>` source) | `Observable<T>` | 
 | **Replay**(this `Observable<T>` source) | `ConnectableObservable<T>` | 
 | **Replay**(this `Observable<T>` source, `Int32` bufferSize) | `ConnectableObservable<T>` | 
@@ -2115,6 +2196,9 @@ Operator methods are defined as extension methods to `Observable<T>` in the stat
 | **SubscribeAwait**(this `Observable<T>` source, `Func<T, CancellationToken, ValueTask>` onNextAsync, `AwaitOperation` awaitOperation = AwaitOperation.Sequential, `Boolean` configureAwait = true, `Boolean` cancelOnCompleted = false, `Int32` maxConcurrent = -1) | `IDisposable` | 
 | **SubscribeAwait**(this `Observable<T>` source, `Func<T, CancellationToken, ValueTask>` onNextAsync, `Action<Result>` onCompleted, `AwaitOperation` awaitOperation = AwaitOperation.Sequential, `Boolean` configureAwait = true, `Boolean` cancelOnCompleted = false, `Int32` maxConcurrent = -1) | `IDisposable` | 
 | **SubscribeAwait**(this `Observable<T>` source, `Func<T, CancellationToken, ValueTask>` onNextAsync, `Action<Exception>` onErrorResume, `Action<Result>` onCompleted, `AwaitOperation` awaitOperation = AwaitOperation.Sequential, `Boolean` configureAwait = true, `Boolean` cancelOnCompleted = false, `Int32` maxConcurrent = -1) | `IDisposable` | 
+| **SubscribeAwait**(this `Observable<T>` source, `TState` state, `Func<T, TState, CancellationToken, ValueTask>` onNextAsync, `AwaitOperation` awaitOperation = AwaitOperation.Sequential, `Boolean` configureAwait = true, `Boolean` cancelOnCompleted = false, `Int32` maxConcurrent = -1) | `IDisposable` | 
+| **SubscribeAwait**(this `Observable<T>` source, `TState` state, `Func<T, TState, CancellationToken, ValueTask>` onNextAsync, `Action<Result, TState>` onCompleted, `AwaitOperation` awaitOperation = AwaitOperation.Sequential, `Boolean` configureAwait = true, `Boolean` cancelOnCompleted = false, `Int32` maxConcurrent = -1) | `IDisposable` | 
+| **SubscribeAwait**(this `Observable<T>` source, `TState` state, `Func<T, TState, CancellationToken, ValueTask>` onNextAsync, `Action<Exception, TState>` onErrorResume, `Action<Result, TState>` onCompleted, `AwaitOperation` awaitOperation = AwaitOperation.Sequential, `Boolean` configureAwait = true, `Boolean` cancelOnCompleted = false, `Int32` maxConcurrent = -1) | `IDisposable` | 
 | **SubscribeOn**(this `Observable<T>` source, `SynchronizationContext` synchronizationContext) | `Observable<T>` | 
 | **SubscribeOn**(this `Observable<T>` source, `TimeProvider` timeProvider) | `Observable<T>` | 
 | **SubscribeOn**(this `Observable<T>` source, `FrameProvider` frameProvider) | `Observable<T>` | 
@@ -2211,6 +2295,7 @@ In dotnet/reactive, methods that return a single `IObservable<T>` (such as `Firs
 
 Class/Method name changes from dotnet/reactive and neuecc/UniRx
 ---
+* `Amb` -> `Race`
 * `Buffer` -> `Chunk`
 * `BatchFrame` -> `ChunkFrame`
 * `Throttle` -> `Debounce`
